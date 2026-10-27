@@ -1,0 +1,28 @@
+[Unit]
+Description=Splayer-UnblockMusic sidecar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@PROJECT_DIR@
+EnvironmentFile=-@ENV_FILE@
+ExecStart="@NODE_BIN@" "@PROJECT_DIR@/src/sidecar.js"
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=%h/.cache
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SyslogIdentifier=splayer-unblockmusic
+
+[Install]
+WantedBy=default.target

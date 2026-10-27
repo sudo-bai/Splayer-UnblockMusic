@@ -1,0 +1,41 @@
+{
+  "name": "splayer-unblockmusic",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Splayer-UnblockMusic：默认内置网易云 HTTP 音源，可选 sidecar 提供 yt-dlp 增强",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "splayer-unblockmusic": "src/sidecar.js"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "pnpm build && node scripts/check-bundle.mjs && node --check src/plugin.js && node --check src/sidecar.js && node --check src/server.js && prettier --check . && bash -n scripts/install-systemd.sh && bash -n scripts/uninstall-systemd.sh",
+    "test": "pnpm build && node --test test/*.test.js",
+    "start": "node src/sidecar.js",
+    "systemd:install": "bash scripts/install-systemd.sh",
+    "systemd:uninstall": "bash scripts/uninstall-systemd.sh",
+    "systemd:status": "systemctl --user status splayer-unblockmusic.service",
+    "systemd:logs": "journalctl --user -u splayer-unblockmusic.service -f"
+  },
+  "dependencies": {
+    "@unblockneteasemusic/server": "0.28.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.10"
+  },
+  "author": "Splayer-UnblockMusic contributors",
+  "packageManager": "pnpm@12.15.0",
+  "homepage": "https://github.com/sudo-bai/Splayer-UnblockMusic#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sudo-bai/Splayer-UnblockMusic.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sudo-bai/Splayer-UnblockMusic/issues"
+  }
+}
