@@ -154,6 +154,37 @@ grep '^UNM_TOKEN=' ~/.config/splayer-unblockmusic/env
 2. 填写 `http://127.0.0.1:18321`
 3. 填写读取到的 Token
 
+### YouTube Cookie
+
+YouTube 对部分网络会要求登录验证。出现以下错误时，需要为 yt-dlp 提供 Cookie：
+
+```text
+Sign in to confirm you're not a bot
+Use --cookies-from-browser or --cookies for the authentication
+```
+
+推荐使用浏览器扩展导出仅包含 `youtube.com` 的 `cookies.txt`：
+
+```bash
+mkdir -p ~/.config/yt-dlp ~/.config/splayer-unblockmusic
+# 将导出的 cookies.txt 保存到下面这个路径
+chmod 600 ~/.config/splayer-unblockmusic/cookies.txt
+```
+
+创建 `~/.config/yt-dlp/config`：
+
+```text
+--cookies /home/skadi/.config/splayer-unblockmusic/cookies.txt
+```
+
+然后重启：
+
+```bash
+systemctl --user restart splayer-unblockmusic.service
+```
+
+也可以尝试 `--cookies-from-browser`，但浏览器 Cookie 加密、Profile 和登录态可能导致读取失败。
+
 ### 配置
 
 `~/.config/splayer-unblockmusic/env`：
@@ -164,20 +195,20 @@ UNM_PORT=18321
 UNM_TOKEN=change-me
 UNM_SOURCES=ytdlp
 ENABLE_FLAC=true
-LOG_LEVEL=error
+LOG_LEVEL=warn
 YTDLP_PATH=/usr/bin/yt-dlp
 ```
 
-| 变量              | 默认值      | 说明                    |
-| ----------------- | ----------- | ----------------------- |
-| `UNM_HOST`        | `127.0.0.1` | 监听地址                |
-| `UNM_PORT`        | `18321`     | 监听端口                |
-| `UNM_TOKEN`       | 空          | Bearer Token            |
-| `UNM_SOURCES`     | `ytdlp`     | 按顺序尝试的 UNM 音源   |
-| `ENABLE_FLAC`     | `true`      | 是否请求无损音源        |
-| `UNM_MIN_BITRATE` | `0`         | 期望最低码率            |
-| `YTDLP_PATH`      | 空          | `yt-dlp` 可执行文件路径 |
-| `LOG_LEVEL`       | `error`     | 上游 UNM 日志级别       |
+| 变量              | 默认值      | 说明                        |
+| ----------------- | ----------- | --------------------------- |
+| `UNM_HOST`        | `127.0.0.1` | 监听地址                    |
+| `UNM_PORT`        | `18321`     | 监听端口                    |
+| `UNM_TOKEN`       | 空          | Bearer Token                |
+| `UNM_SOURCES`     | `ytdlp`     | 按顺序尝试的 UNM 音源       |
+| `ENABLE_FLAC`     | `true`      | 是否请求无损音源            |
+| `UNM_MIN_BITRATE` | `0`         | 期望最低码率                |
+| `YTDLP_PATH`      | 空          | `yt-dlp` 可执行文件路径     |
+| `LOG_LEVEL`       | `warn`      | 上游 UNM 与 yt-dlp 日志级别 |
 
 可用的上游音源：
 

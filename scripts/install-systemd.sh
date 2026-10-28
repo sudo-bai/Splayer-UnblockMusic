@@ -81,7 +81,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
     echo "UNM_TOKEN=<生成的 Token>"
     echo "UNM_SOURCES=ytdlp"
     echo "ENABLE_FLAC=true"
-    echo "LOG_LEVEL=error"
+    echo "LOG_LEVEL=warn"
     [[ -n "$YTDLP_BIN" ]] && echo "YTDLP_PATH=$YTDLP_BIN"
   fi
   exit 0
@@ -103,7 +103,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "UNM_TOKEN=$TOKEN"
     echo "UNM_SOURCES=ytdlp"
     echo "ENABLE_FLAC=true"
-    echo "LOG_LEVEL=error"
+    echo "LOG_LEVEL=warn"
     if [[ -n "$YTDLP_BIN" ]]; then
       echo "YTDLP_PATH=$YTDLP_BIN"
     else

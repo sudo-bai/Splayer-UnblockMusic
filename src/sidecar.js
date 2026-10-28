@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createRequire } from "node:module";
 import { loadConfig } from "./config.js";
 import { createResolver } from "./resolver.js";
@@ -7,6 +10,22 @@ import { createSidecarServer } from "./server.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require("../package.json");
+
+/**
+ * 检查 yt-dlp 用户配置是否声明了 Cookie
+ * @returns 是否检测到 Cookie 配置
+ */
+const hasYtDlpCookieConfig = () => {
+  const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return ["config", "config.txt"].some((fileName) => {
+    try {
+      const content = fs.readFileSync(path.join(configHome, "yt-dlp", fileName), "utf8");
+      return /(?:^|\s)--cookies(?:-from-browser)?(?:\s|$)/m.test(content);
+    } catch {
+      return false;
+    }
+  });
+};
 
 /**
  * 检测系统中的 yt-dlp
@@ -28,7 +47,7 @@ const start = () => {
   const config = loadConfig();
   process.env.ENABLE_FLAC = config.enableFlac ? "true" : "false";
   process.env.FOLLOW_SOURCE_ORDER = "true";
-  if (!process.env.LOG_LEVEL) process.env.LOG_LEVEL = "error";
+  if (!process.env.LOG_LEVEL) process.env.LOG_LEVEL = "warn";
 
   // 上游在模块加载时读取 ENABLE_FLAC，因此必须在设置环境变量后再加载
   const match = require("@unblockneteasemusic/server");
@@ -44,6 +63,11 @@ const start = () => {
     config.sources.some((source) => source === "ytdlp" || source === "youtubedl")
   ) {
     console.warn("[unblockmusic] 未检测到 yt-dlp，ytdlp 音源将不可用");
+  }
+  if (ytdlp.available && !hasYtDlpCookieConfig()) {
+    console.warn(
+      "[unblockmusic] 未检测到 yt-dlp Cookie 配置；YouTube 可能要求登录并返回 bot check",
+    );
   }
 
   const server = createSidecarServer({
