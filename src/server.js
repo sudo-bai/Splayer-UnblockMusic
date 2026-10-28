@@ -137,16 +137,22 @@ export const createSidecarServer = ({
         redirect: "follow",
       });
 
+    const userAgents = [
+      "Lavf/62.12.101",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36",
+      "Mozilla/5.0",
+    ];
     let upstream;
-    try {
-      upstream = await request("Lavf/62.12.101");
-      if (upstream.status === 403) {
-        await upstream.body?.cancel().catch(() => {});
-        upstream = await request("Mozilla/5.0");
+    for (const [index, userAgent] of userAgents.entries()) {
+      try {
+        upstream = await request(userAgent);
+      } catch {
+        sendJson(res, 502, { error: "audio_proxy_failed" });
+        return;
       }
-    } catch {
-      sendJson(res, 502, { error: "audio_proxy_failed" });
-      return;
+      if (upstream.status !== 403 || index === userAgents.length - 1) break;
+      await upstream.body?.cancel().catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
     if (upstream.status !== 206 && upstream.status !== 200) {
