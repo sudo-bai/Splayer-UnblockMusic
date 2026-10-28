@@ -140,7 +140,10 @@ export const createSidecarServer = ({
     let upstream;
     try {
       upstream = await request("Lavf/62.12.101");
-      if (upstream.status === 403) upstream = await request("Mozilla/5.0");
+      if (upstream.status === 403) {
+        await upstream.body?.cancel().catch(() => {});
+        upstream = await request("Mozilla/5.0");
+      }
     } catch {
       sendJson(res, 502, { error: "audio_proxy_failed" });
       return;
