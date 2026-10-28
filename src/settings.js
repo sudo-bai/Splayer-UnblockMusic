@@ -36,7 +36,7 @@ export const PLUGIN_SETTINGS = [
     key: "sidecarEnabled",
     type: "switch",
     label: "启用 sidecar 增强",
-    description: "内置音源无法满足音质时，调用本地 sidecar 使用 yt-dlp 等额外音源",
+    description: "内置音源无法满足音质时，调用本地 sidecar 使用 yt-dlp 兜底",
     default: false,
   },
   {

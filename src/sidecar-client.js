@@ -43,7 +43,7 @@ export const createSidecarClient = (requestClient) => ({
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ id: info.id, quality }),
+        body: JSON.stringify({ id: info.id, quality, keyword: info.keyword }),
         timeout,
       },
       true,

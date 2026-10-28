@@ -141,7 +141,11 @@ test("启用设置后 sidecar 仅在内置音源失败时兜底", async () => {
   assert.equal(result.url, "https://cdn.test/ytdlp.webm");
   assert.equal(result.quality, "hq");
   assert.equal(sidecarRequest.options.headers.Authorization, "Bearer secret");
-  assert.equal(JSON.parse(sidecarRequest.options.body).id, "186016");
+  assert.deepEqual(JSON.parse(sidecarRequest.options.body), {
+    id: "186016",
+    quality: "hq",
+    keyword: "晴天 - 周杰伦",
+  });
 });
 
 test("纯 JS provider 可识别 MP3 实际音质", async () => {

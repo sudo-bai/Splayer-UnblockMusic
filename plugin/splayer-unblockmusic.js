@@ -1,7 +1,7 @@
 /**
  * @name        Splayer-UnblockMusic
  * @id          splayer.unblock-music
- * @version     0.2.0
+ * @version     0.3.0
  * @description 内置 HTTP 音源为网易云歌曲补充播放地址，可选 sidecar 提供 yt-dlp 增强
  * @author      Splayer-UnblockMusic contributors
  * @type        source
@@ -140,14 +140,14 @@
   };
 
   // src/music-resolver.js
-  var RESOLUTION_BUDGET = 16e3;
+  var RESOLUTION_BUDGET = 18e3;
   var RESULT_CACHE_TTL = 6e4;
   var RESULT_CACHE_LIMIT = 128;
   var DEFAULT_SOURCE_TIMEOUTS = {
     bodian: 5e3,
     kugou: 4500,
     kuwo: 3500,
-    sidecar: 5e3
+    sidecar: 14e3
   };
   var withTimeout = (promise, timeout, source) => new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -215,12 +215,13 @@
     }) => {
       const requestedQuality = normalizeQuality(quality);
       const deadline = now() + resolutionBudget;
+      const builtinDeadline = sidecar ? Math.min(deadline, now() + 4e3) : deadline;
       const failures = [];
       let best = null;
       for (const source of sourceOrder) {
         const provider = providers[source];
         if (!provider) continue;
-        const remaining = deadline - now();
+        const remaining = builtinDeadline - now();
         if (remaining <= 0) break;
         const timeout = Math.max(
           1,
@@ -245,8 +246,8 @@
         if (remaining >= 1e3) {
           try {
             const result2 = await withTimeout(
-              Promise.resolve(sidecar.resolve(info, requestedQuality, Math.min(remaining, 5e3))),
-              Math.min(remaining, 5e3),
+              Promise.resolve(sidecar.resolve(info, requestedQuality, Math.min(remaining, 14e3))),
+              Math.min(remaining, 14e3),
               "sidecar"
             );
             if (result2) best = pickBetterResult(best, normalizeResult(result2, "sidecar"));
@@ -694,7 +695,7 @@ ${token}`;
         {
           method: "POST",
           headers,
-          body: JSON.stringify({ id: info.id, quality }),
+          body: JSON.stringify({ id: info.id, quality, keyword: info.keyword }),
           timeout
         },
         true
@@ -745,7 +746,7 @@ ${token}`;
       key: "sidecarEnabled",
       type: "switch",
       label: "启用 sidecar 增强",
-      description: "内置音源无法满足音质时，调用本地 sidecar 使用 yt-dlp 等额外音源",
+      description: "内置音源无法满足音质时，调用本地 sidecar 使用 yt-dlp 兜底",
       default: false
     },
     {

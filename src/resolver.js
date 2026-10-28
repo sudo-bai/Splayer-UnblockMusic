@@ -1,43 +1,21 @@
-export const CACHE_LIMIT = 128;
+import { createError, errorMessage } from "./errors.js";
+import { meetsQuality, normalizeQuality } from "./quality.js";
+
+export const RESOLUTION_BUDGET = 16_000;
 export const CACHE_TTL = 60_000;
-export const RESOLUTION_BUDGET = 16_500;
-export const SOURCE_TIMEOUT = 5_000;
-export const YTDLP_TIMEOUT = 9_000;
-
-export const QUALITY_MIN_BITRATE = {
-  lq: 0,
-  sq: 192_000,
-  hq: 320_000,
-  lossless: 900_000,
-  "hi-res": 1_411_200,
-};
+export const CACHE_LIMIT = 128;
 
 /**
- * 把音频码率映射为 SPlayer 音质档位
- * @param bitrate - UNM 探测到的码率
- * @returns SPlayer 音质档位，未知时返回 undefined
+ * 为 yt-dlp 调用设置总时间上限
+ * @param promise - yt-dlp 调用
+ * @param timeout - 超时时间
+ * @returns 解析结果
  */
-export const mapQuality = (bitrate) => {
-  if (!Number.isFinite(bitrate) || bitrate <= 0) return undefined;
-  if (bitrate >= 1_411_200) return "hi-res";
-  if (bitrate >= 900_000) return "lossless";
-  if (bitrate >= 320_000) return "hq";
-  if (bitrate >= 192_000) return "sq";
-  return "lq";
-};
-
-/**
- * 为单个音源调用设置时间上限
- * @param promise - UNM 音源调用
- * @param timeoutMs - 超时时间
- * @param source - 音源名称
- * @returns 音源解析结果
- */
-const withTimeout = (promise, timeoutMs, source) =>
+const withTimeout = (promise, timeout) =>
   new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(Object.assign(new Error(`${source} 解析超时`), { code: "UNM_SOURCE_TIMEOUT" }));
-    }, timeoutMs);
+      reject(createError("yt-dlp 解析超时", "YTDLP_TIMEOUT"));
+    }, timeout);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -51,26 +29,25 @@ const withTimeout = (promise, timeoutMs, source) =>
   });
 
 /**
- * 创建带缓存、并发复用和音源降级的 UNM 解析器
- * @param options - 解析器依赖与默认配置
- * @returns UNM 解析器
+ * 创建带缓存与并发复用的 yt-dlp 解析器
+ * @param options - yt-dlp 调用、关键词回退与日志
+ * @returns sidecar 解析器
  */
 export const createResolver = ({
-  match,
-  sources,
-  enableFlac,
-  minBitrate = 0,
-  now = () => Date.now(),
+  run,
+  resolveKeyword,
   logger = console,
+  now = () => Date.now(),
+  resolutionBudget = RESOLUTION_BUDGET,
 }) => {
-  if (typeof match !== "function") throw new TypeError("match 必须是函数");
-  if (!Array.isArray(sources) || sources.length === 0) throw new Error("至少需要一个 UNM 音源");
+  if (typeof run !== "function") throw new TypeError("run 必须是函数");
+  if (typeof resolveKeyword !== "function") throw new TypeError("resolveKeyword 必须是函数");
 
   const cache = new Map();
   const pending = new Map();
 
   /**
-   * 读取未过期的解析缓存
+   * 读取未过期的播放结果
    * @param key - 缓存键
    * @returns 缓存结果或 undefined
    */
@@ -87,9 +64,9 @@ export const createResolver = ({
   };
 
   /**
-   * 写入有界解析缓存
+   * 写入有界播放结果缓存
    * @param key - 缓存键
-   * @param value - 解析结果
+   * @param value - 播放结果
    */
   const writeCache = (key, value) => {
     cache.delete(key);
@@ -99,87 +76,49 @@ export const createResolver = ({
 
   return {
     /**
-     * 解析网易云歌曲的可用播放地址
-     * @param input - 歌曲 ID 与期望音质
-     * @returns 解析结果
+     * 解析网易云歌曲的 YouTube 播放地址
+     * @param input - 歌曲 ID、音质与可选关键词
+     * @returns 播放结果
      */
-    async resolve({ id, quality = "hq" }) {
+    async resolve({ id, quality = "hq", keyword = "" }) {
       const songId = String(id ?? "").trim();
       if (!/^\d+$/.test(songId)) {
-        throw Object.assign(new Error("歌曲 ID 必须是网易云数字 ID"), { code: "UNM_INVALID_ID" });
+        throw createError("歌曲 ID 必须是网易云数字 ID", "INVALID_ID");
       }
-
-      const requestedQuality = Object.hasOwn(QUALITY_MIN_BITRATE, quality) ? quality : "hq";
-      const requiredBitrate = Math.max(minBitrate, QUALITY_MIN_BITRATE[requestedQuality]);
-      const key = JSON.stringify([songId, requestedQuality, requiredBitrate]);
+      const requestedQuality = normalizeQuality(quality);
+      const query = String(keyword ?? "").trim() || (await resolveKeyword(songId));
+      const key = JSON.stringify([songId, requestedQuality, query]);
       const cached = readCache(key);
       if (cached) return { ...cached, cached: true };
       const active = pending.get(key);
       if (active) return active;
 
-      const operation = (async () => {
-        const deadline = now() + RESOLUTION_BUDGET;
-        const failures = [];
-        let best = null;
+      const operation = withTimeout(
+        run(query, resolutionBudget, requestedQuality),
+        resolutionBudget,
+      )
+        .then((result) => {
+          const normalized = {
+            ...result,
+            requestedQuality,
+            degraded: !meetsQuality(result, requestedQuality),
+            cached: false,
+          };
+          writeCache(key, normalized);
+          logger.info(`《${query}》由 yt-dlp 解析，音质 ${normalized.quality}`);
+          if (normalized.degraded) logger.warn("yt-dlp 未达到请求音质，已返回实际可用音质");
+          return normalized;
+        })
+        .catch((error) => {
+          logger.warn(`[unblockmusic:ytdlp] ${errorMessage(error)}`);
+          throw error;
+        })
+        .finally(() => {
+          if (pending.get(key) === operation) pending.delete(key);
+        });
 
-        for (const source of sources) {
-          const remaining = deadline - now();
-          if (remaining <= 0) break;
-          const timeout = Math.max(
-            1,
-            Math.min(
-              source === "ytdlp" || source === "youtubedl" ? YTDLP_TIMEOUT : SOURCE_TIMEOUT,
-              remaining,
-            ),
-          );
-
-          try {
-            const result = await withTimeout(match(songId, [source]), timeout, source);
-            if (!result?.url || typeof result.url !== "string") {
-              throw new Error("未返回播放地址");
-            }
-            if (!best || Number(result.br) > Number(best.br)) best = result;
-            if (!requiredBitrate || Number(result.br) >= requiredBitrate) break;
-          } catch (error) {
-            failures.push(`${source}: ${error instanceof Error ? error.message : String(error)}`);
-            logger.warn(
-              `[unblockmusic:${source}] ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-
-        if (!best) {
-          throw Object.assign(
-            new Error(
-              `所有 UNM 音源均未解析成功${failures.length ? `：${failures.join("；")}` : ""}`,
-            ),
-            { code: "UNM_NO_SOURCE" },
-          );
-        }
-
-        const bitrate = Number.isFinite(Number(best.br)) ? Number(best.br) : null;
-        const result = {
-          url: best.url,
-          provider: best.source,
-          bitrate,
-          size: Number.isFinite(Number(best.size)) ? Number(best.size) : null,
-          quality: mapQuality(bitrate) ?? requestedQuality,
-          requestedQuality,
-          flac: Boolean(enableFlac),
-          degraded: Boolean(requiredBitrate && bitrate && bitrate < requiredBitrate),
-          cached: false,
-        };
-        writeCache(key, result);
-        return result;
-      })();
-
-      if (pending.size >= CACHE_LIMIT) return operation;
-      pending.set(key, operation);
-      try {
-        return await operation;
-      } finally {
-        if (pending.get(key) === operation) pending.delete(key);
-      }
+      if (pending.size < CACHE_LIMIT) pending.set(key, operation);
+      return operation;
     },
   };
 };

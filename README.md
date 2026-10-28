@@ -4,7 +4,7 @@
 
 - **默认安装只需要导入一个 `.js` 文件**
 - 内置酷狗、波点、酷我 HTTP 音源，无需 Node.js、sidecar 或 `yt-dlp`
-- 可选启用本地 sidecar，使用 `yt-dlp` 等额外音源兜底
+- 可选启用本地 sidecar，使用 `yt-dlp` 兜底
 - 不修改 SPlayer-Next 主程序，不影响应用更新
 - 只使用 SPlayer 公开插件 API，插件 API level 2，权限 `network`
 
@@ -23,7 +23,6 @@ SPlayer-Next
        │    └─ kuwo
        │
        └─ 可选 sidecar fallback
-            ├─ @unblockneteasemusic/server
             └─ yt-dlp
 ```
 
@@ -88,8 +87,8 @@ bodian → kugou → kuwo
 波点：5 秒
 酷狗：4.5 秒
 酷我：3.5 秒
-可选 sidecar：最多 5 秒
-总解析预算：16 秒
+可选 sidecar：最多 14 秒
+总解析预算：18 秒；启用 sidecar 时内置音源阶段最多 4 秒
 ```
 
 SPlayer `musicUrl` 的超时是 20 秒，插件会在其之前结束解析。
@@ -118,7 +117,7 @@ SPlayer `musicUrl` 的超时是 20 秒，插件会在其之前结束解析。
 
 ## 可选 sidecar
 
-只有需要 `yt-dlp` 或其他 UNM 音源时才需要 sidecar。
+只有需要 `yt-dlp` 时才需要 sidecar。
 
 ### 安装
 
@@ -134,12 +133,6 @@ pnpm systemd:install
 ```text
 ~/.config/splayer-unblockmusic/env
 ~/.config/systemd/user/splayer-unblockmusic.service
-```
-
-默认 sidecar 只运行 `ytdlp`：
-
-```dotenv
-UNM_SOURCES=ytdlp
 ```
 
 读取 Token：
@@ -163,27 +156,32 @@ Sign in to confirm you're not a bot
 Use --cookies-from-browser or --cookies for the authentication
 ```
 
-推荐使用浏览器扩展导出仅包含 `youtube.com` 的 `cookies.txt`：
+可以使用 Cookie 文件：
 
 ```bash
-mkdir -p ~/.config/yt-dlp ~/.config/splayer-unblockmusic
-# 将导出的 cookies.txt 保存到下面这个路径
+mkdir -p ~/.config/splayer-unblockmusic
 chmod 600 ~/.config/splayer-unblockmusic/cookies.txt
 ```
 
-创建 `~/.config/yt-dlp/config`：
+然后在 sidecar 环境文件中设置：
 
-```text
---cookies /home/skadi/.config/splayer-unblockmusic/cookies.txt
+```dotenv
+YTDLP_COOKIES=/home/you/.config/splayer-unblockmusic/cookies.txt
 ```
 
-然后重启：
+也可以直接读取浏览器 Profile：
+
+```dotenv
+YTDLP_COOKIES_FROM_BROWSER=brave:/path/to/browser/profile
+```
+
+Chrome/Brave 的 Cookie 可能受系统密钥环影响。若浏览器提取失败，使用导出的 Netscape `cookies.txt` 更稳定。
+
+修改后重启：
 
 ```bash
 systemctl --user restart splayer-unblockmusic.service
 ```
-
-也可以尝试 `--cookies-from-browser`，但浏览器 Cookie 加密、Profile 和登录态可能导致读取失败。
 
 ### 配置
 
@@ -193,30 +191,21 @@ systemctl --user restart splayer-unblockmusic.service
 UNM_HOST=127.0.0.1
 UNM_PORT=18321
 UNM_TOKEN=change-me
-UNM_SOURCES=ytdlp
-ENABLE_FLAC=true
-LOG_LEVEL=warn
 YTDLP_PATH=/usr/bin/yt-dlp
+YTDLP_COOKIES=
+YTDLP_COOKIES_FROM_BROWSER=
+LOG_LEVEL=warn
 ```
 
-| 变量              | 默认值      | 说明                        |
-| ----------------- | ----------- | --------------------------- |
-| `UNM_HOST`        | `127.0.0.1` | 监听地址                    |
-| `UNM_PORT`        | `18321`     | 监听端口                    |
-| `UNM_TOKEN`       | 空          | Bearer Token                |
-| `UNM_SOURCES`     | `ytdlp`     | 按顺序尝试的 UNM 音源       |
-| `ENABLE_FLAC`     | `true`      | 是否请求无损音源            |
-| `UNM_MIN_BITRATE` | `0`         | 期望最低码率                |
-| `YTDLP_PATH`      | 空          | `yt-dlp` 可执行文件路径     |
-| `LOG_LEVEL`       | `warn`      | 上游 UNM 与 yt-dlp 日志级别 |
-
-可用的上游音源：
-
-```text
-qq,kugou,kuwo,bodian,migu,joox,youtube,youtubedl,ytdlp,bilibili,bilivideo,pyncmd
-```
-
-QQ、咪咕、JOOX 等音源可能需要上游库支持的 Cookie 环境变量。
+| 变量                         | 默认值      | 说明                       |
+| ---------------------------- | ----------- | -------------------------- |
+| `UNM_HOST`                   | `127.0.0.1` | 监听地址                   |
+| `UNM_PORT`                   | `18321`     | 监听端口                   |
+| `UNM_TOKEN`                  | 空          | Bearer Token               |
+| `YTDLP_PATH`                 | `yt-dlp`    | yt-dlp 可执行文件          |
+| `YTDLP_COOKIES`              | 空          | Netscape Cookie 文件路径   |
+| `YTDLP_COOKIES_FROM_BROWSER` | 空          | 浏览器 Profile Cookie 来源 |
+| `LOG_LEVEL`                  | `warn`      | sidecar 日志级别           |
 
 ### systemd 管理
 
@@ -261,7 +250,21 @@ sidecar 只暴露固定的解析协议，不接受调用方指定音源或命令
 GET /health
 ```
 
-无需认证。
+无需认证。响应包含 yt-dlp 版本与 Cookie 配置状态。
+
+```json
+{
+  "ok": true,
+  "version": "0.3.0",
+  "sources": ["ytdlp"],
+  "ytdlp": {
+    "available": true,
+    "version": "2026.10.26"
+  },
+  "cookiesConfigured": true,
+  "activeResolves": 0
+}
+```
 
 ### 解析
 
@@ -272,21 +275,24 @@ Content-Type: application/json
 
 {
   "id": "186016",
-  "quality": "lossless"
+  "quality": "lossless",
+  "keyword": "晴天 - 周杰伦"
 }
 ```
+
+`keyword` 可省略；省略时 sidecar 会查询网易云详情生成搜索关键词。
 
 响应：
 
 ```json
 {
-  "url": "https://cdn.example/song.flac",
-  "provider": "bodian",
-  "bitrate": 1642935,
-  "size": 55397039,
-  "quality": "lossless",
+  "url": "https://rr2---...googlevideo.com/videoplayback?...",
+  "provider": "ytdlp",
+  "bitrate": 128000,
+  "size": 5152105,
+  "quality": "lq",
   "requestedQuality": "lossless",
-  "degraded": false,
+  "degraded": true,
   "cached": false
 }
 ```
@@ -357,7 +363,7 @@ plugin/splayer-unblockmusic.js
 
 ### 为什么还需要 sidecar
 
-sidecar 只用于其他 UNM 音源和 `yt-dlp`。不需要这些功能时不要开启。
+sidecar 只用于 `yt-dlp`。不需要时不要开启。
 
 ### 日志里出现酷狗取流失败
 
@@ -385,8 +391,8 @@ sidecar 只用于其他 UNM 音源和 `yt-dlp`。不需要这些功能时不要�
 
 第三方组件和行为参考：
 
-- [UnblockNeteaseMusic/server](https://github.com/UnblockNeteaseMusic/server)，LGPL-3.0-only
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp)，Unlicense
+- [UnblockNeteaseMusic/server](https://github.com/UnblockNeteaseMusic/server)，LGPL-3.0-only，内置 provider 行为参考
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp)，Unlicense，可选 sidecar 外部程序
 
 详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
 

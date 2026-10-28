@@ -64,10 +64,6 @@ UNIT_CONTENT="${UNIT_CONTENT//@PROJECT_DIR@/$ROOT_DIR}"
 UNIT_CONTENT="${UNIT_CONTENT//@ENV_FILE@/$ENV_FILE}"
 UNIT_CONTENT="${UNIT_CONTENT//@NODE_BIN@/$NODE_BIN}"
 
-if [[ ! -d "$ROOT_DIR/node_modules/@unblockneteasemusic/server" ]]; then
-  echo "警告: 尚未安装依赖，请先执行 cd \"$ROOT_DIR\" && pnpm install" >&2
-fi
-
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "=== $UNIT_FILE ==="
   printf '%s\n' "$UNIT_CONTENT"
@@ -79,10 +75,14 @@ if [[ $DRY_RUN -eq 1 ]]; then
     echo "UNM_HOST=127.0.0.1"
     echo "UNM_PORT=18321"
     echo "UNM_TOKEN=<生成的 Token>"
-    echo "UNM_SOURCES=ytdlp"
-    echo "ENABLE_FLAC=true"
     echo "LOG_LEVEL=warn"
-    [[ -n "$YTDLP_BIN" ]] && echo "YTDLP_PATH=$YTDLP_BIN"
+    if [[ -n "$YTDLP_BIN" ]]; then
+      echo "YTDLP_PATH=$YTDLP_BIN"
+    else
+      echo "YTDLP_PATH=yt-dlp"
+    fi
+    echo "# YTDLP_COOKIES=$ENV_DIR/cookies.txt"
+    echo "# YTDLP_COOKIES_FROM_BROWSER=brave:/path/to/profile"
   fi
   exit 0
 fi
@@ -101,14 +101,15 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "UNM_HOST=127.0.0.1"
     echo "UNM_PORT=18321"
     echo "UNM_TOKEN=$TOKEN"
-    echo "UNM_SOURCES=ytdlp"
-    echo "ENABLE_FLAC=true"
     echo "LOG_LEVEL=warn"
     if [[ -n "$YTDLP_BIN" ]]; then
       echo "YTDLP_PATH=$YTDLP_BIN"
     else
       echo "# yt-dlp 未找到；安装后可添加 YTDLP_PATH=/path/to/yt-dlp"
+      echo "YTDLP_PATH=yt-dlp"
     fi
+    echo "# YTDLP_COOKIES=$ENV_DIR/cookies.txt"
+    echo "# YTDLP_COOKIES_FROM_BROWSER=brave:/path/to/profile"
   } >"$ENV_TMP"
   mv "$ENV_TMP" "$ENV_FILE"
   echo "已创建环境文件: $ENV_FILE"

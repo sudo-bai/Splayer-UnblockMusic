@@ -1,14 +1,14 @@
 import { createError, errorMessage } from "./errors.js";
 import { mapQuality, meetsQuality, normalizeQuality, pickBetterResult } from "./quality.js";
 
-export const RESOLUTION_BUDGET = 16_000;
+export const RESOLUTION_BUDGET = 18_000;
 export const RESULT_CACHE_TTL = 60_000;
 export const RESULT_CACHE_LIMIT = 128;
 export const DEFAULT_SOURCE_TIMEOUTS = {
   bodian: 5_000,
   kugou: 4_500,
   kuwo: 3_500,
-  sidecar: 5_000,
+  sidecar: 14_000,
 };
 
 /**
@@ -116,13 +116,14 @@ export const createMusicResolver = ({
   }) => {
     const requestedQuality = normalizeQuality(quality);
     const deadline = now() + resolutionBudget;
+    const builtinDeadline = sidecar ? Math.min(deadline, now() + 4_000) : deadline;
     const failures = [];
     let best = null;
 
     for (const source of sourceOrder) {
       const provider = providers[source];
       if (!provider) continue;
-      const remaining = deadline - now();
+      const remaining = builtinDeadline - now();
       if (remaining <= 0) break;
       const timeout = Math.max(
         1,
@@ -148,8 +149,8 @@ export const createMusicResolver = ({
       if (remaining >= 1_000) {
         try {
           const result = await withTimeout(
-            Promise.resolve(sidecar.resolve(info, requestedQuality, Math.min(remaining, 5_000))),
-            Math.min(remaining, 5_000),
+            Promise.resolve(sidecar.resolve(info, requestedQuality, Math.min(remaining, 14_000))),
+            Math.min(remaining, 14_000),
             "sidecar",
           );
           if (result) best = pickBetterResult(best, normalizeResult(result, "sidecar"));

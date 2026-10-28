@@ -21,20 +21,21 @@ const listen = async (options) => {
 
 test("健康检查不需要认证", async () => {
   const service = await listen({
-    resolver: { resolve: async () => ({ url: "https://cdn.test/song.mp3" }) },
+    resolver: { resolve: async () => ({ url: "https://cdn.test/song.m4a" }) },
     token: "secret",
-    version: "0.2.0",
-    sources: ["kugou"],
-    ytdlp: { available: true, version: "2026.10.21" },
+    version: "0.3.0",
+    ytdlp: { available: true, version: "2026.10.26" },
+    cookiesConfigured: true,
   });
   try {
     const response = await fetch(`${service.baseUrl}/health`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       ok: true,
-      version: "0.2.0",
-      sources: ["kugou"],
-      ytdlp: { available: true, version: "2026.10.21" },
+      version: "0.3.0",
+      sources: ["ytdlp"],
+      ytdlp: { available: true, version: "2026.10.26" },
+      cookiesConfigured: true,
       activeResolves: 0,
     });
   } finally {
@@ -42,19 +43,19 @@ test("健康检查不需要认证", async () => {
   }
 });
 
-test("解析接口校验 Token 并返回播放地址", async () => {
+test("解析接口校验 Token 并传递关键词", async () => {
   const requests = [];
   const service = await listen({
     resolver: {
       resolve: async (input) => {
         requests.push(input);
-        return { url: "https://cdn.test/song.flac", quality: "lossless", provider: "bodian" };
+        return { url: "https://cdn.test/song.m4a", quality: "lq", provider: "ytdlp" };
       },
     },
     token: "secret",
-    version: "0.2.0",
-    sources: ["bodian"],
-    ytdlp: { available: false, version: null },
+    version: "0.3.0",
+    ytdlp: { available: true, version: "2026.10.26" },
+    cookiesConfigured: true,
   });
   try {
     const unauthorized = await fetch(`${service.baseUrl}/v1/resolve`, {
@@ -70,11 +71,15 @@ test("解析接口校验 Token 并返回播放地址", async () => {
         "Content-Type": "application/json",
         Authorization: "Bearer secret",
       },
-      body: JSON.stringify({ id: "186016", quality: "lossless" }),
+      body: JSON.stringify({
+        id: "186016",
+        quality: "lossless",
+        keyword: "晴天 - 周杰伦",
+      }),
     });
     assert.equal(response.status, 200);
-    assert.deepEqual(requests, [{ id: "186016", quality: "lossless" }]);
-    assert.equal((await response.json()).provider, "bodian");
+    assert.deepEqual(requests, [{ id: "186016", quality: "lossless", keyword: "晴天 - 周杰伦" }]);
+    assert.equal((await response.json()).provider, "ytdlp");
   } finally {
     await service.close();
   }
@@ -84,12 +89,12 @@ test("解析错误返回稳定错误码", async () => {
   const service = await listen({
     resolver: {
       resolve: async () => {
-        throw Object.assign(new Error("没有可用音源"), { code: "UNM_NO_SOURCE" });
+        throw Object.assign(new Error("需要 Cookie"), { code: "YTDLP_COOKIE_REQUIRED" });
       },
     },
-    version: "0.2.0",
-    sources: ["kugou"],
-    ytdlp: { available: false, version: null },
+    version: "0.3.0",
+    ytdlp: { available: true, version: "2026.10.26" },
+    cookiesConfigured: false,
   });
   try {
     const response = await fetch(`${service.baseUrl}/v1/resolve`, {
@@ -99,8 +104,8 @@ test("解析错误返回稳定错误码", async () => {
     });
     assert.equal(response.status, 502);
     assert.deepEqual(await response.json(), {
-      error: "UNM_NO_SOURCE",
-      message: "没有可用音源",
+      error: "YTDLP_COOKIE_REQUIRED",
+      message: "需要 Cookie",
     });
   } finally {
     await service.close();

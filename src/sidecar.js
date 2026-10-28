@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { loadConfig } from "./config.js";
 import { createResolver } from "./resolver.js";
 import { createSidecarServer } from "./server.js";
+import { createYtDlpRunner, fetchKeyword, inspectYtDlp } from "./ytdlp.js";
 
-const require = createRequire(import.meta.url);
-const packageJson = require("../package.json");
+const packageJson = JSON.parse(
+  fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 
 /**
  * 检查 yt-dlp 用户配置是否声明了 Cookie
@@ -28,60 +28,44 @@ const hasYtDlpCookieConfig = () => {
 };
 
 /**
- * 检测系统中的 yt-dlp
- * @returns yt-dlp 可用性与版本
- */
-const inspectYtDlp = () => {
-  const result = spawnSync("yt-dlp", ["--version"], {
-    encoding: "utf8",
-    timeout: 3_000,
-  });
-  if (result.error || result.status !== 0) return { available: false, version: null };
-  return { available: true, version: result.stdout.trim() || null };
-};
-
-/**
  * 启动 Splayer-UnblockMusic sidecar
  */
-const start = () => {
+const start = async () => {
   const config = loadConfig();
-  process.env.ENABLE_FLAC = config.enableFlac ? "true" : "false";
-  process.env.FOLLOW_SOURCE_ORDER = "true";
-  if (!process.env.LOG_LEVEL) process.env.LOG_LEVEL = "warn";
-
-  // 上游在模块加载时读取 ENABLE_FLAC，因此必须在设置环境变量后再加载
-  const match = require("@unblockneteasemusic/server");
-  const resolver = createResolver({
-    match,
-    sources: config.sources,
-    enableFlac: config.enableFlac,
-    minBitrate: config.minBitrate,
-  });
-  const ytdlp = inspectYtDlp();
-  if (
-    !ytdlp.available &&
-    config.sources.some((source) => source === "ytdlp" || source === "youtubedl")
-  ) {
-    console.warn("[unblockmusic] 未检测到 yt-dlp，ytdlp 音源将不可用");
-  }
-  if (ytdlp.available && !hasYtDlpCookieConfig()) {
+  const ytdlp = await inspectYtDlp(config.ytdlpPath);
+  const cookiesConfigured = Boolean(
+    config.ytdlpCookies || config.ytdlpCookiesFromBrowser || hasYtDlpCookieConfig(),
+  );
+  if (!ytdlp.available) {
+    console.warn(`[unblockmusic] 无法执行 yt-dlp: ${config.ytdlpPath}`);
+  } else if (!cookiesConfigured) {
     console.warn(
       "[unblockmusic] 未检测到 yt-dlp Cookie 配置；YouTube 可能要求登录并返回 bot check",
     );
   }
 
+  const runner = createYtDlpRunner({
+    executable: config.ytdlpPath,
+    cookies: config.ytdlpCookies,
+    cookiesFromBrowser: config.ytdlpCookiesFromBrowser,
+  });
+  const resolver = createResolver({
+    run: runner.run,
+    resolveKeyword: fetchKeyword,
+    logger: console,
+  });
   const server = createSidecarServer({
     resolver,
     token: config.token,
     version: packageJson.version,
-    sources: config.sources,
     ytdlp,
+    cookiesConfigured,
   });
 
   server.listen(config.port, config.host, () => {
     console.log(`[unblockmusic] sidecar 已启动: http://${config.host}:${config.port}`);
-    console.log(`[unblockmusic] 音源: ${config.sources.join(", ")}`);
     console.log(`[unblockmusic] yt-dlp: ${ytdlp.available ? ytdlp.version : "不可用"}`);
+    console.log(`[unblockmusic] Cookie: ${cookiesConfigured ? "已配置" : "未配置"}`);
     console.log(`[unblockmusic] 认证: ${config.token ? "Bearer Token" : "关闭（仅限本机）"}`);
   });
 
@@ -94,4 +78,7 @@ const start = () => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 };
 
-start();
+start().catch((error) => {
+  console.error(`[unblockmusic] sidecar 启动失败: ${error?.message ?? error}`);
+  process.exit(1);
+});

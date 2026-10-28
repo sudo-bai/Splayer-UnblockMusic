@@ -70,7 +70,13 @@ export const authorize = (req, token) => {
  * @param options - 解析器、认证与运行信息
  * @returns Node HTTP 服务
  */
-export const createSidecarServer = ({ resolver, token = "", version, sources, ytdlp }) => {
+export const createSidecarServer = ({
+  resolver,
+  token = "",
+  version,
+  ytdlp,
+  cookiesConfigured = false,
+}) => {
   if (!resolver || typeof resolver.resolve !== "function") {
     throw new TypeError("resolver.resolve 必须是函数");
   }
@@ -83,8 +89,9 @@ export const createSidecarServer = ({ resolver, token = "", version, sources, yt
       sendJson(res, 200, {
         ok: true,
         version,
-        sources,
+        sources: ["ytdlp"],
         ytdlp,
+        cookiesConfigured,
         activeResolves,
       });
       return;
@@ -111,6 +118,7 @@ export const createSidecarServer = ({ resolver, token = "", version, sources, yt
       const result = await resolver.resolve({
         id: body.id,
         quality: typeof body.quality === "string" ? body.quality : "hq",
+        keyword: typeof body.keyword === "string" ? body.keyword : "",
       });
       sendJson(res, 200, result);
     } catch (error) {
