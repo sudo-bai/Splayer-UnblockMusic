@@ -38,7 +38,25 @@ SPlayer-Next
 
 插件产物不包含 `require`、ES `import`、`child_process`、`fs`、WebAssembly、DOM 或 Electron API。
 
-## 直接安装插件
+## 安装插件
+
+### GitHub 在线导入（推荐）
+
+打开 SPlayer-Next：
+
+```text
+设置 → 插件管理 → 在线导入
+```
+
+粘贴以下 GitHub raw 地址：
+
+```text
+https://raw.githubusercontent.com/sudo-bai/Splayer-UnblockMusic/main/plugin/splayer-unblockmusic.js
+```
+
+确认导入并启用即可。插件自带 `@updateUrl`，后续可以从 GitHub 检查并获取新版本。
+
+### 本地导入
 
 下载或构建：
 
@@ -46,13 +64,13 @@ SPlayer-Next
 plugin/splayer-unblockmusic.js
 ```
 
-打开 SPlayer-Next：
+打开：
 
 ```text
 设置 → 插件管理 → 本地导入
 ```
 
-导入该文件并启用即可。默认配置不调用 sidecar，也不要求安装 Node.js。
+选择该文件并启用。默认配置不调用 sidecar，也不要求安装 Node.js。
 
 播放网易云歌曲时，如果官方播放地址不可用，SPlayer 会调用本插件，插件按以下默认顺序解析：
 
