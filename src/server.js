@@ -1,8 +1,11 @@
 import crypto from "node:crypto";
 import http from "node:http";
+import { Readable } from "node:stream";
 
 export const MAX_BODY_SIZE = 16 * 1024;
 export const MAX_CONCURRENT_RESOLVES = 2;
+const AUDIO_SESSION_LIMIT = 128;
+const AUDIO_SESSION_TTL = 30 * 60_000;
 
 /**
  * 发送 JSON 响应
@@ -82,6 +85,95 @@ export const createSidecarServer = ({
   }
 
   let activeResolves = 0;
+  const audioSessions = new Map();
+
+  /**
+   * 清理过期的音频代理会话
+   */
+  const cleanAudioSessions = () => {
+    const now = Date.now();
+    for (const [id, session] of audioSessions) {
+      if (session.expiresAt <= now) audioSessions.delete(id);
+    }
+  };
+
+  /**
+   * 注册一个本地音频代理会话
+   * @param upstreamUrl - yt-dlp 返回的上游播放地址
+   * @param expire - 上游地址过期时间
+   * @returns 会话 ID
+   */
+  const createAudioSession = (upstreamUrl, expire) => {
+    cleanAudioSessions();
+    while (audioSessions.size >= AUDIO_SESSION_LIMIT) {
+      audioSessions.delete(audioSessions.keys().next().value);
+    }
+    const id = crypto.randomBytes(16).toString("hex");
+    audioSessions.set(id, {
+      upstreamUrl,
+      expiresAt: Math.min(
+        Date.now() + AUDIO_SESSION_TTL,
+        Number.isFinite(expire) && expire > Date.now() ? expire : Number.POSITIVE_INFINITY,
+      ),
+    });
+    return id;
+  };
+
+  /**
+   * 代理上游音频并透传 Range 请求
+   * @param req - 客户端请求
+   * @param res - 客户端响应
+   * @param upstreamUrl - 上游播放地址
+   */
+  const proxyAudio = async (req, res, upstreamUrl) => {
+    const range = typeof req.headers.range === "string" ? req.headers.range : "bytes=0-";
+    const request = (userAgent) =>
+      fetch(upstreamUrl, {
+        headers: {
+          Range: range,
+          "User-Agent": userAgent,
+          "Accept-Encoding": "identity",
+        },
+        redirect: "follow",
+      });
+
+    let upstream;
+    try {
+      upstream = await request("Lavf/62.12.101");
+      if (upstream.status === 403) upstream = await request("Mozilla/5.0");
+    } catch {
+      sendJson(res, 502, { error: "audio_proxy_failed" });
+      return;
+    }
+
+    if (upstream.status !== 206 && upstream.status !== 200) {
+      sendJson(res, 502, { error: `audio_upstream_${upstream.status}` });
+      return;
+    }
+
+    const headers = {};
+    for (const name of [
+      "content-type",
+      "content-length",
+      "content-range",
+      "accept-ranges",
+      "cache-control",
+      "last-modified",
+      "etag",
+    ]) {
+      const value = upstream.headers.get(name);
+      if (value) headers[name] = value;
+    }
+    res.writeHead(upstream.status, headers);
+    if (!upstream.body) {
+      res.end();
+      return;
+    }
+    Readable.fromWeb(upstream.body)
+      .on("error", () => res.destroy())
+      .pipe(res);
+  };
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
@@ -94,6 +186,18 @@ export const createSidecarServer = ({
         cookiesConfigured,
         activeResolves,
       });
+      return;
+    }
+
+    const audioMatch = /^\/v1\/audio\/([a-f0-9]{32})$/.exec(url.pathname);
+    if (req.method === "GET" && audioMatch) {
+      const session = audioSessions.get(audioMatch[1]);
+      if (!session || session.expiresAt <= Date.now()) {
+        if (session) audioSessions.delete(audioMatch[1]);
+        sendJson(res, 404, { error: "audio_session_not_found" });
+        return;
+      }
+      await proxyAudio(req, res, session.upstreamUrl);
       return;
     }
 
@@ -120,7 +224,13 @@ export const createSidecarServer = ({
         quality: typeof body.quality === "string" ? body.quality : "hq",
         keyword: typeof body.keyword === "string" ? body.keyword : "",
       });
-      sendJson(res, 200, result);
+      const sessionId = createAudioSession(result.url, result.expire);
+      const host = req.headers.host || "127.0.0.1";
+      sendJson(res, 200, {
+        ...result,
+        upstreamUrl: undefined,
+        url: `http://${host}/v1/audio/${sessionId}`,
+      });
     } catch (error) {
       const status = Number(error?.status) || 502;
       sendJson(res, status, {

@@ -255,7 +255,7 @@ GET /health
 ```json
 {
   "ok": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "sources": ["ytdlp"],
   "ytdlp": {
     "available": true,
@@ -282,11 +282,13 @@ Content-Type: application/json
 
 `keyword` 可省略；省略时 sidecar 会查询网易云详情生成搜索关键词。
 
+返回的 `url` 指向 sidecar 的本地音频代理。SPlayer 不直接访问 googlevideo；sidecar 会透传 Range 请求，并在遇到 403 时切换请求头重试。
+
 响应：
 
 ```json
 {
-  "url": "https://rr2---...googlevideo.com/videoplayback?...",
+  "url": "http://127.0.0.1:18321/v1/audio/82f3ce4218daafd21f9a81c1fb7805c6",
   "provider": "ytdlp",
   "bitrate": 128000,
   "size": 5152105,
@@ -311,6 +313,7 @@ lq,sq,hq,lossless,hi-res
 - Token 只作为 Bearer Header 使用，不写入日志
 - API 只接受网易云数字 ID
 - 请求体最大 16KB
+- 音频代理会话使用 128 位随机 ID，默认 30 分钟过期
 - 同时最多处理 2 个 sidecar 解析请求
 - `yt-dlp` 使用固定参数执行
 - 不输出完整播放地址

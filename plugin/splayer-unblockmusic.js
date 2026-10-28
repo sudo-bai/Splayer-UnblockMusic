@@ -1,7 +1,7 @@
 /**
  * @name        Splayer-UnblockMusic
  * @id          splayer.unblock-music
- * @version     0.3.0
+ * @version     0.3.1
  * @description 内置 HTTP 音源为网易云歌曲补充播放地址，可选 sidecar 提供 yt-dlp 增强
  * @author      Splayer-UnblockMusic contributors
  * @type        source

@@ -1,6 +1,6 @@
 {
   "name": "splayer-unblockmusic",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Splayer-UnblockMusic：默认内置网易云 HTTP 音源，可选 yt-dlp sidecar 增强",
   "type": "module",
