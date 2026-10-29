@@ -81,7 +81,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
     else
       echo "YTDLP_PATH=yt-dlp"
     fi
-    echo "# YTDLP_COOKIES=$ENV_DIR/cookies.txt"
+    echo "# YTDLP_COOKIES=$HOME/.cache/splayer-unblockmusic/cookies.txt"
     echo "# YTDLP_COOKIES_FROM_BROWSER=brave:/path/to/profile"
   fi
   exit 0
@@ -92,7 +92,8 @@ systemctl --user show-environment >/dev/null 2>&1 || {
   exit 1
 }
 
-mkdir -p "$SYSTEMD_DIR" "$ENV_DIR"
+mkdir -p "$SYSTEMD_DIR" "$ENV_DIR" "$HOME/.cache/splayer-unblockmusic"
+chmod 700 "$HOME/.cache/splayer-unblockmusic"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   ENV_TMP="$(mktemp "$ENV_DIR/env.XXXXXX")"
@@ -108,7 +109,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
       echo "# yt-dlp 未找到；安装后可添加 YTDLP_PATH=/path/to/yt-dlp"
       echo "YTDLP_PATH=yt-dlp"
     fi
-    echo "# YTDLP_COOKIES=$ENV_DIR/cookies.txt"
+    echo "# YTDLP_COOKIES=$HOME/.cache/splayer-unblockmusic/cookies.txt"
     echo "# YTDLP_COOKIES_FROM_BROWSER=brave:/path/to/profile"
   } >"$ENV_TMP"
   mv "$ENV_TMP" "$ENV_FILE"

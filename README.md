@@ -177,14 +177,15 @@ Use --cookies-from-browser or --cookies for the authentication
 可以使用 Cookie 文件：
 
 ```bash
-mkdir -p ~/.config/splayer-unblockmusic
-chmod 600 ~/.config/splayer-unblockmusic/cookies.txt
+mkdir -p ~/.cache/splayer-unblockmusic
+chmod 700 ~/.cache/splayer-unblockmusic
+chmod 600 ~/.cache/splayer-unblockmusic/cookies.txt
 ```
 
 然后在 sidecar 环境文件中设置：
 
 ```dotenv
-YTDLP_COOKIES=/home/you/.config/splayer-unblockmusic/cookies.txt
+YTDLP_COOKIES=/home/you/.cache/splayer-unblockmusic/cookies.txt
 ```
 
 也可以直接读取浏览器 Profile：
@@ -193,7 +194,9 @@ YTDLP_COOKIES=/home/you/.config/splayer-unblockmusic/cookies.txt
 YTDLP_COOKIES_FROM_BROWSER=brave:/path/to/browser/profile
 ```
 
-Chrome/Brave 的 Cookie 可能受系统密钥环影响。若浏览器提取失败，使用导出的 Netscape `cookies.txt` 更稳定。
+Chrome/Brave 的 Cookie 可能受系统密钥环和长期运行进程状态影响。若浏览器提取失败，使用导出的 Netscape `cookies.txt` 更稳定。
+
+systemd 服务对家目录只读，Cookie 文件应放在可写的 `~/.cache/splayer-unblockmusic/`。
 
 修改后重启：
 
