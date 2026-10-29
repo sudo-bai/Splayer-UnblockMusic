@@ -116,7 +116,15 @@ export const createYtDlpRunner = ({
    * @returns 统一播放结果
    */
   async run(keyword, timeout, requestedQuality = "hq") {
-    const args = ["--no-playlist", "--dump-json", "--no-warnings", "-f", "bestaudio/best"];
+    const args = [
+      "--no-playlist",
+      "--dump-json",
+      "--no-warnings",
+      "--extractor-args",
+      "youtube:player_client=web",
+      "-f",
+      "bestaudio/best",
+    ];
     if (cookies) args.push("--cookies", cookies);
     else if (cookiesFromBrowser) args.push("--cookies-from-browser", cookiesFromBrowser);
     args.push(`ytsearch1:${keyword}`);

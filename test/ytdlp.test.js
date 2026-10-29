@@ -40,6 +40,7 @@ test("传入 Cookie 文件并固定搜索参数", async () => {
   assert.equal(result.provider, "ytdlp");
   assert.equal(call[0], "/usr/bin/yt-dlp");
   assert.ok(call[1].includes("--cookies"));
+  assert.ok(call[1].includes("youtube:player_client=web"));
   assert.ok(call[1].includes("/tmp/cookies.txt"));
   assert.equal(call[1].at(-1), "ytsearch1:晴天 - 周杰伦");
 });
